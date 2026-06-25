@@ -99,9 +99,10 @@ class UserRepository:
             SELECT id, user_id, code_hash, expires_at, used_at, attempts, created_at
             FROM activation_codes
             WHERE user_id = $1
-              AND used_at IS NULL
+            AND used_at IS NULL
             ORDER BY created_at DESC
             LIMIT 1
+            FOR UPDATE
             """,
             user_id,
         )

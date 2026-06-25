@@ -3,17 +3,26 @@ from datetime import datetime, timedelta, timezone
 import asyncpg
 
 from app.core.config import Settings
-from app.core.exceptions import UserAlreadyExistsError
+from app.core.exceptions import (
+    InvalidCredentialsError,
+    InvalidOrExpiredActivationCodeError,
+    TooManyActivationAttemptsError,
+    UserAlreadyActiveError,
+    UserAlreadyExistsError,
+)
 from app.core.security import (
     generate_activation_code,
     hash_activation_code,
     hash_password,
+    verify_activation_code,
+    verify_password,
 )
 from app.email.client import EmailClient
 from app.users.records import UserRecord
 from app.users.repository import UserRepository
 
 ACTIVATION_CODE_TTL_SECONDS = 60
+MAX_ACTIVATION_ATTEMPTS = 5
 
 
 class UserService:
@@ -64,3 +73,56 @@ class UserService:
         )
 
         return user
+
+    async def activate_user(
+        self,
+        email: str,
+        password: str,
+        code: str,
+    ) -> UserRecord:
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                repository = UserRepository(connection)
+
+                user = await repository.get_user_by_email(email)
+                if user is None:
+                    raise InvalidCredentialsError()
+
+                if not verify_password(password, user.password_hash):
+                    raise InvalidCredentialsError()
+
+                if user.is_active:
+                    raise UserAlreadyActiveError()
+
+                activation_code = await repository.get_latest_unused_activation_code(
+                    user.id
+                )
+                if activation_code is None:
+                    raise InvalidOrExpiredActivationCodeError()
+
+                if activation_code.attempts >= MAX_ACTIVATION_ATTEMPTS:
+                    raise TooManyActivationAttemptsError()
+
+                now = datetime.now(timezone.utc)
+                if activation_code.expires_at <= now:
+                    raise InvalidOrExpiredActivationCodeError()
+
+                is_code_valid = verify_activation_code(
+                    plain_code=code,
+                    code_hash=activation_code.code_hash,
+                    user_id=user.id,
+                    pepper=self._settings.activation_code_pepper,
+                )
+
+                if not is_code_valid:
+                    updated_code = await repository.increment_activation_attempts(
+                        activation_code.id,
+                    )
+
+                    if updated_code.attempts >= MAX_ACTIVATION_ATTEMPTS:
+                        raise TooManyActivationAttemptsError()
+
+                    raise InvalidOrExpiredActivationCodeError()
+
+                await repository.mark_activation_code_used(activation_code.id)
+                return await repository.activate_user(user.id)

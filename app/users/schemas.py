@@ -19,6 +19,18 @@ class RegisterUserRequest(BaseModel):
         return value
 
 
+class ActivateUserRequest(BaseModel):
+    code: str = Field(min_length=4, max_length=4)
+
+    @field_validator("code")
+    @classmethod
+    def validate_code(cls, value: str) -> str:
+        if not value.isdigit():
+            raise ValueError("Activation code must contain exactly 4 digits")
+
+        return value
+
+
 class UserResponse(BaseModel):
     id: UUID
     email: EmailStr
