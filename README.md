@@ -1,2 +1,18 @@
-# user-registration-api-fastapi
-FastAPI user registration and email activation API with PostgreSQL, asyncpg, Docker and tests.
+# User Registration API
+
+FastAPI API for user registration and account activation using a 4-digit email verification code.
+
+## Tech stack
+
+- Python 3.12
+- FastAPI
+- PostgreSQL
+- asyncpg
+- Docker Compose
+- pytest
+
+## Run
+
+```bash
+docker compose up --build
+```
