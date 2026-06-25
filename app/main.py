@@ -1,11 +1,22 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
+
+import asyncpg
+
+from app.core.config import get_settings
+from app.db.pool import close_pool, create_pool, get_db_pool
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    yield
+    settings = get_settings()
+    app.state.db_pool = await create_pool(settings.database_url)
+
+    try:
+        yield
+    finally:
+        await close_pool(app.state.db_pool)
 
 
 app = FastAPI(
@@ -18,3 +29,13 @@ app = FastAPI(
 @app.get("/health", tags=["health"])
 async def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/ready", tags=["health"])
+async def readiness_check(
+    pool: asyncpg.Pool = Depends(get_db_pool),
+) -> dict[str, str]:
+    async with pool.acquire() as connection:
+        await connection.fetchval("SELECT 1")
+
+    return {"status": "ready"}
