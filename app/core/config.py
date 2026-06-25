@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     database_url: str = Field(alias="DATABASE_URL")
     email_provider_mode: str = Field(default="fake", alias="EMAIL_PROVIDER_MODE")
     apply_schema_on_startup: bool = Field(default=True, alias="APPLY_SCHEMA_ON_STARTUP")
+    activation_code_pepper: str = Field(
+        default="local-dev-activation-code-pepper",
+        alias="ACTIVATION_CODE_PEPPER",
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

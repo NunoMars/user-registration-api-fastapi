@@ -8,6 +8,7 @@ services:
       DATABASE_URL: postgresql://app:app@postgres:5432/registration
       EMAIL_PROVIDER_MODE: fake
       APPLY_SCHEMA_ON_STARTUP: "true"
+      ACTIVATION_CODE_PEPPER: local-dev-activation-code-pepper
     depends_on:
       postgres:
         condition: service_healthy
