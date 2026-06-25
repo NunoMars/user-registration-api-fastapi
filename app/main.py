@@ -1,11 +1,14 @@
 from contextlib import asynccontextmanager
 
 import asyncpg
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
+from app.core.exceptions import ApiError
 from app.db.pool import close_pool, create_pool, get_db_pool
 from app.db.schema_loader import apply_schema
+from app.users.router import router as users_router
 
 
 @asynccontextmanager
@@ -27,6 +30,25 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(ApiError)
+async def api_error_handler(
+    request: Request,
+    exc: ApiError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {
+                "code": exc.code,
+                "message": exc.message,
+            }
+        },
+    )
+
+
+app.include_router(users_router)
 
 
 @app.get("/health", tags=["health"])
