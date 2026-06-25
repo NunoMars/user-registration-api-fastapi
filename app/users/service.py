@@ -4,6 +4,7 @@ import asyncpg
 
 from app.core.config import Settings
 from app.core.exceptions import (
+    ApiError,
     InvalidCredentialsError,
     InvalidOrExpiredActivationCodeError,
     TooManyActivationAttemptsError,
@@ -80,6 +81,8 @@ class UserService:
         password: str,
         code: str,
     ) -> UserRecord:
+        error_to_raise: ApiError | None = None
+
         async with self._pool.acquire() as connection:
             async with connection.transaction():
                 repository = UserRepository(connection)
@@ -120,9 +123,14 @@ class UserService:
                     )
 
                     if updated_code.attempts >= MAX_ACTIVATION_ATTEMPTS:
-                        raise TooManyActivationAttemptsError()
+                        error_to_raise = TooManyActivationAttemptsError()
+                    else:
+                        error_to_raise = InvalidOrExpiredActivationCodeError()
+                else:
+                    await repository.mark_activation_code_used(activation_code.id)
+                    return await repository.activate_user(user.id)
 
-                    raise InvalidOrExpiredActivationCodeError()
+        if error_to_raise is not None:
+            raise error_to_raise
 
-                await repository.mark_activation_code_used(activation_code.id)
-                return await repository.activate_user(user.id)
+        raise InvalidOrExpiredActivationCodeError()
